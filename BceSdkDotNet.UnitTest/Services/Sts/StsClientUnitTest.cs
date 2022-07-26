@@ -10,27 +10,22 @@
 // specific language governing permissions and limitations under the License.
 
 using System;
-
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-
 using BaiduBce.Auth;
 using BaiduBce.Services.Sts;
 using BaiduBce.Services.Sts.Model;
+using Xunit;
 
 namespace BaiduBce.UnitTest.Services.Sts
 {
     public class StsClientUnitTest
     {
-        public class Base : BceClientUnitTestBase
+        public class Base : BceClientUnitTestBase, IDisposable
         {
-            public TestContext TestContext { get; set; }
-
             protected BceClientConfiguration config;
 
             protected StsClient client;
 
-            [TestInitialize()]
-            public void TestInitialize()
+            public Base()
             {
                 this.config = new BceClientConfiguration();
                 this.config.Credentials = new DefaultBceCredentials(this.ak, this.sk);
@@ -38,39 +33,37 @@ namespace BaiduBce.UnitTest.Services.Sts
                 this.client = new StsClient(this.config);
             }
 
-            [TestCleanup()]
-            public void TestCleanup()
+            public void Dispose()
             {
             }
         }
 
-        [TestClass]
         public class GetSessionTokenTest : Base
         {
-            [TestMethod]
+            [Fact]
             public void TestDefaultArguments()
             {
                 var getSessionTokenResponse = this.client.GetSessionToken();
-                Assert.IsNotNull(getSessionTokenResponse.AccessKeyId);
-                Assert.IsNotNull(getSessionTokenResponse.SecretAccessKey);
-                Assert.IsNotNull(getSessionTokenResponse.SessionToken);
-                Assert.IsNotNull(getSessionTokenResponse.Expiration);
-                Assert.IsTrue((getSessionTokenResponse.Expiration - DateTime.Now).TotalSeconds > 1500);
+                Assert.NotNull(getSessionTokenResponse.AccessKeyId);
+                Assert.NotNull(getSessionTokenResponse.SecretAccessKey);
+                Assert.NotNull(getSessionTokenResponse.SessionToken);
+                Assert.NotNull(getSessionTokenResponse.Expiration);
+                Assert.True((getSessionTokenResponse.Expiration - DateTime.Now).TotalSeconds > 1500);
             }
 
-            [TestMethod]
+            [Fact]
             public void TestDurationSeconds()
             {
                 var getSessionTokenResponse =
                     this.client.GetSessionToken(new GetSessionTokenRequest() { DurationSeconds = 10 });
-                Assert.IsNotNull(getSessionTokenResponse.AccessKeyId);
-                Assert.IsNotNull(getSessionTokenResponse.SecretAccessKey);
-                Assert.IsNotNull(getSessionTokenResponse.SessionToken);
-                Assert.IsNotNull(getSessionTokenResponse.Expiration);
-                Assert.IsTrue((getSessionTokenResponse.Expiration - DateTime.Now).TotalSeconds < 30);
+                Assert.NotNull(getSessionTokenResponse.AccessKeyId);
+                Assert.NotNull(getSessionTokenResponse.SecretAccessKey);
+                Assert.NotNull(getSessionTokenResponse.SessionToken);
+                Assert.NotNull(getSessionTokenResponse.Expiration);
+                Assert.True((getSessionTokenResponse.Expiration - DateTime.Now).TotalSeconds < 30);
             }
 
-            [TestMethod]
+            [Fact]
             public void TestAcl()
             {
                 var getSessionTokenResponse =
@@ -91,26 +84,30 @@ namespace BaiduBce.UnitTest.Services.Sts
                             ]
                         }"
                     });
-                Assert.IsNotNull(getSessionTokenResponse.AccessKeyId);
-                Assert.IsNotNull(getSessionTokenResponse.SecretAccessKey);
-                Assert.IsNotNull(getSessionTokenResponse.SessionToken);
-                Assert.IsNotNull(getSessionTokenResponse.Expiration);
+                Assert.NotNull(getSessionTokenResponse.AccessKeyId);
+                Assert.NotNull(getSessionTokenResponse.SecretAccessKey);
+                Assert.NotNull(getSessionTokenResponse.SessionToken);
+                Assert.NotNull(getSessionTokenResponse.Expiration);
             }
 
-            [TestMethod]
-            [ExpectedException(typeof(BceServiceException))]
+            [Fact]
             public void TestEmptyAcl()
             {
-                var getSessionTokenResponse =
-                    this.client.GetSessionToken(new GetSessionTokenRequest() { AccessControlList = "{}" });
+                Assert.Throws<BceServiceException>(() =>
+                {
+                    var getSessionTokenResponse = 
+                        this.client.GetSessionToken(new GetSessionTokenRequest() {AccessControlList = "{}"});
+                });
             }
 
-            [TestMethod]
-            [ExpectedException(typeof(BceServiceException))]
+            [Fact]
             public void TestInvalidAcl()
             {
-                var getSessionTokenResponse =
-                    this.client.GetSessionToken(new GetSessionTokenRequest() { AccessControlList = "{" });
+                Assert.Throws<BceServiceException>(() =>
+                {
+                    var getSessionTokenResponse =
+                        this.client.GetSessionToken(new GetSessionTokenRequest() {AccessControlList = "{"});
+                });
             }
         }
     }
