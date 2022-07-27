@@ -14,7 +14,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Text;
-using System.Web;
 
 using log4net;
 
@@ -1466,8 +1465,8 @@ namespace BaiduBce.Services.Bos
                 if (header.StartsWith(BceConstants.HttpHeaders.BceUserMetadataPrefix))
                 {
                     string key = header.Substring(BceConstants.HttpHeaders.BceUserMetadataPrefix.Length);
-                    objectMetadata.UserMetadata[HttpUtility.UrlDecode(key)] =
-                        HttpUtility.UrlDecode(httpWebResponse.GetResponseHeader(header));
+                    objectMetadata.UserMetadata[WebUtility.UrlDecode(key)] =
+                        WebUtility.UrlDecode(httpWebResponse.GetResponseHeader(header));
                 }
             }
             return objectMetadata;
@@ -1603,7 +1602,7 @@ namespace BaiduBce.Services.Bos
 
             try
             {
-                return new Uri(HttpUtility.UrlDecode(urlstring, Encoding.UTF8));
+                return new Uri(WebUtility.UrlDecode(urlstring));
             }
             catch (UriFormatException e)
             {

@@ -14,11 +14,11 @@ using System.Net;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using BaiduBce.Services.Bos;
 using BaiduBce.Services.Bos.Model;
 using BaiduBce.Auth;
 using BaiduBce.Util;
+using Xunit;
 
 namespace BaiduBce.UnitTest.Services.Bos
 {
@@ -27,10 +27,8 @@ namespace BaiduBce.UnitTest.Services.Bos
     /// </summary>
     public class BosClientUnitTest
     {
-        public class Base : BceClientUnitTestBase
+        public class Base : BceClientUnitTestBase, IDisposable
         {
-            public TestContext TestContext { get; set; }
-
             protected static readonly string BucketPrefix = "ut-net-" + new Random().Next().ToString("X") + "-";
 
             protected string bucketName;
@@ -45,8 +43,7 @@ namespace BaiduBce.UnitTest.Services.Bos
 
             protected BosClient client;
 
-            [TestInitialize()]
-            public void TestInitialize()
+            public Base()
             {
                 this.bucketName = (BucketPrefix + new Random().Next().ToString("X")).ToLower();
                 this.owner = new User() {Id = this.userId, DisplayName = "PASSPORT:105015426"};
@@ -59,8 +56,7 @@ namespace BaiduBce.UnitTest.Services.Bos
                 this.client.CreateBucket(this.bucketName);
             }
 
-            [TestCleanup()]
-            public void TestCleanup()
+            public void Dispose()
             {
                 this.client = new BosClient(this.config);
                 List<BucketSummary> buckets = this.client.ListBuckets().Buckets;
@@ -68,6 +64,7 @@ namespace BaiduBce.UnitTest.Services.Bos
                 {
                     return;
                 }
+
                 foreach (BucketSummary bucket in buckets)
                 {
                     string bucketName = bucket.Name;
@@ -83,64 +80,61 @@ namespace BaiduBce.UnitTest.Services.Bos
                                 this.client.DeleteObject(bucketName, key);
                             }
                         }
+
                         this.client.DeleteBucket(bucket.Name);
                     }
                 }
             }
         }
 
-        [TestClass]
         public class CommonTest : Base
         {
-            [TestMethod]
-            [ExpectedException(typeof (BceServiceException))]
+            [Fact]
             public void TestRequestWithInvalidCredential()
             {
                 BceClientConfiguration bceClientConfiguration = new BceClientConfiguration();
                 bceClientConfiguration.Credentials = new DefaultBceCredentials("test", "test");
                 bceClientConfiguration.Endpoint = this.endpoint;
                 this.client = new BosClient(bceClientConfiguration);
-                this.client.ListBuckets();
+                Assert.Throws<BceServiceException>(() => this.client.ListBuckets());
             }
 
-            [TestMethod]
+            [Fact]
             public void TestMimetypes()
             {
-                Assert.AreEqual(MimeTypes.GetMimetype("png"), "image/png");
-                Assert.AreEqual(MimeTypes.GetMimetype("gram"), "application/srgs");
-                Assert.AreEqual(MimeTypes.GetMimetype(""), MimeTypes.MimeTypeOctetStream);
+                Assert.Equal("image/png", MimeTypes.GetMimetype("png"));
+                Assert.Equal("application/srgs", MimeTypes.GetMimetype("gram"));
+                Assert.Equal(MimeTypes.MimeTypeOctetStream, MimeTypes.GetMimetype(""));
             }
         }
 
-        [TestClass]
         public class BucketTest : Base
         {
-            [TestMethod]
+            [Fact]
             public void TestListBuckets()
             {
                 var listBucketsResponse = this.client.ListBuckets();
-                Assert.IsTrue(listBucketsResponse.Buckets.Count > 0);
+                Assert.True(listBucketsResponse.Buckets.Count > 0);
             }
 
-            [TestMethod]
+            [Fact]
             public void TestDoesBucketExist()
             {
-                Assert.IsTrue(this.client.DoesBucketExist(this.bucketName));
-                Assert.IsFalse(this.client.DoesBucketExist("xxxaaa"));
+                Assert.True(this.client.DoesBucketExist(this.bucketName));
+                Assert.False(this.client.DoesBucketExist("xxxaaa"));
             }
 
-            [TestMethod]
+            [Fact]
             public void TestGetBucketLocation()
             {
                 GetBucketLocationResponse getBucketLocationResponse = this.client.GetBucketLocation(this.bucketName);
-                Assert.AreEqual(getBucketLocationResponse.LocationConstraint, "bj");
+                Assert.Equal("bj", getBucketLocationResponse.LocationConstraint);
             }
         }
 
-        [TestClass]
         public class SetBucketAclTest : Base
         {
-            [TestMethod]
+            [Fact]
             public void TestPublicReadWrite()
             {
                 string objectKey = "objectPublicReadWrite";
@@ -148,7 +142,7 @@ namespace BaiduBce.UnitTest.Services.Bos
 
                 this.client.SetBucketAcl(this.bucketName, BosConstants.CannedAcl.PublicReadWrite);
                 GetBucketAclResponse response = this.client.GetBucketAcl(this.bucketName);
-                Assert.AreEqual(response.Owner.Id, this.grantee.Id);
+                Assert.Equal(response.Owner.Id, this.grantee.Id);
 
                 List<Grant> grants = new List<Grant>();
                 List<Grantee> granteeOwner = new List<Grantee>();
@@ -163,25 +157,24 @@ namespace BaiduBce.UnitTest.Services.Bos
                 permissionAnonymous.Add(BosConstants.Permission.Write);
                 grants.Add(new Grant() {Grantee = granteeAnonymous, Permission = permissionAnonymous});
 
-                Assert.AreEqual(response.AccessControlList.Count, grants.Count);
+                Assert.Equal(response.AccessControlList.Count, grants.Count);
                 this.client.PutObject(this.bucketName, objectKey, data);
                 BceClientConfiguration bceClientConfiguration = new BceClientConfiguration();
                 bceClientConfiguration.Endpoint = this.endpoint;
                 BosClient bosAnonymous = new BosClient(bceClientConfiguration);
-                Assert.AreEqual(
+                Assert.Equal(
                     Encoding.Default.GetString(bosAnonymous.GetObjectContent(this.bucketName, objectKey)), data);
 
                 bosAnonymous.PutObject(this.bucketName, "anonymous", "dataAnonymous");
-                Assert.AreEqual(
-                    Encoding.Default.GetString(bosAnonymous.GetObjectContent(this.bucketName, "anonymous")),
-                    "dataAnonymous");
+                Assert.Equal(
+                    "dataAnonymous",
+                    Encoding.Default.GetString(bosAnonymous.GetObjectContent(this.bucketName, "anonymous")));
             }
         }
 
-        [TestClass]
         public class GeneratePresignedUrlTest : Base
         {
-            [TestMethod]
+            [Fact]
             public void TestOrdinary()
             {
                 string objectKey = "test";
@@ -201,17 +194,15 @@ namespace BaiduBce.UnitTest.Services.Bos
                     using (StreamReader streamReader = new StreamReader(stream))
                     {
                         string response = streamReader.ReadToEnd();
-                        Assert.AreEqual(response, value);
+                        Assert.Equal(response, value);
                     }
-
                 }
             }
         }
 
-        [TestClass]
         public class CopyObjectTest : Base
         {
-            [TestMethod]
+            [Fact]
             public void TestOrdinary()
             {
                 string objectName = "sample";
@@ -222,8 +213,8 @@ namespace BaiduBce.UnitTest.Services.Bos
                 CopyObjectResponse copyObjectResponse = client.CopyObject(bucketName, objectName, bucketName,
                     newObjectName);
                 // sampledata
-                Assert.AreEqual(Encoding.Default.GetString(client.GetObjectContent(bucketName, newObjectName)),
-                    "sampledata");
+                Assert.Equal("sampledata",
+                    Encoding.Default.GetString(client.GetObjectContent(bucketName, newObjectName)));
 
                 // 3. 拷贝并设置新的meta
                 newObjectName = "copyobject-newmeta";
@@ -242,15 +233,14 @@ namespace BaiduBce.UnitTest.Services.Bos
                 };
                 copyObjectRequest.NewObjectMetadata = objectMetadata;
                 client.CopyObject(copyObjectRequest);
-                Assert.AreEqual(client.GetObjectMetadata(bucketName, newObjectName).UserMetadata["metakey"],
-                    "metavalue");
+                Assert.Equal("metavalue",
+                    client.GetObjectMetadata(bucketName, newObjectName).UserMetadata["metakey"]);
             }
         }
 
-        [TestClass]
         public class PutObjectTest : Base
         {
-            [TestMethod]
+            [Fact]
             public void TestOrdinary()
             {
                 string path = "put_object_ordinary.txt";
@@ -264,16 +254,16 @@ namespace BaiduBce.UnitTest.Services.Bos
                     FileInfo = fileInfo
                 };
                 String eTag = this.client.PutObject(request).ETAG;
-                Assert.AreEqual(eTag, HashUtils.ComputeMD5Hash(fileInfo));
+                Assert.Equal(eTag, HashUtils.ComputeMD5Hash(fileInfo));
                 String content = System.Text.Encoding.Default.GetString(this.client.GetObjectContent
                     (this.bucketName, key));
-                Assert.AreEqual(content, "data");
+                Assert.Equal("data", content);
                 FileInfo outFileInfo = new FileInfo("object_ordinary.txt");
                 this.client.GetObject(this.bucketName, key, outFileInfo);
-                Assert.AreEqual(eTag, HashUtils.ComputeMD5Hash(outFileInfo));
+                Assert.Equal(eTag, HashUtils.ComputeMD5Hash(outFileInfo));
             }
 
-            [TestMethod]
+            [Fact]
             public void TestContentLengthSmallThanStreamLength()
             {
                 ObjectMetadata objectMetadata = new ObjectMetadata();
@@ -290,14 +280,13 @@ namespace BaiduBce.UnitTest.Services.Bos
                 this.client.PutObject(request);
                 String content = System.Text.Encoding.Default.GetString(this.client.GetObjectContent
                     (this.bucketName, "te%%st"));
-                Assert.AreEqual(content, "da");
+                Assert.Equal("da", content);
             }
         }
 
-        [TestClass]
         public class GetObjectTest : Base
         {
-            [TestMethod]
+            [Fact]
             public void TestOrdinary()
             {
                 string path = "put_object_ordinary.txt";
@@ -311,15 +300,15 @@ namespace BaiduBce.UnitTest.Services.Bos
                     FileInfo = fileInfo
                 };
                 String eTag = this.client.PutObject(request).ETAG;
-                Assert.AreEqual(eTag, HashUtils.ComputeMD5Hash(fileInfo));
+                Assert.Equal(eTag, HashUtils.ComputeMD5Hash(fileInfo));
                 BosObject bosObject = this.client.GetObject(this.bucketName, key);
                 String content =
                     Encoding.Default.GetString(IOUtils.StreamToBytes(bosObject.ObjectContent,
                         bosObject.ObjectMetadata.ContentLength, 8192));
-                Assert.AreEqual(content, "data");
+                Assert.Equal("data", content);
             }
 
-            [TestMethod]
+            [Fact]
             public void TestGetRange()
             {
                 string path = "put_object_ordinary.txt";
@@ -339,31 +328,29 @@ namespace BaiduBce.UnitTest.Services.Bos
                 String content =
                     Encoding.Default.GetString(IOUtils.StreamToBytes(bosObject.ObjectContent,
                         bosObject.ObjectMetadata.ContentLength, 8192));
-                Assert.AreEqual(content, "d");
+                Assert.Equal("d", content);
             }
         }
 
-        [TestClass]
         public class InitiateMultipartUploadTest : Base
         {
-            [TestMethod]
+            [Fact]
             public void TestOrdinary()
             {
                 InitiateMultipartUploadResponse response = this.client.InitiateMultipartUpload(this.bucketName, "test");
-                Assert.AreEqual(response.Bucket, this.bucketName);
-                Assert.AreEqual(response.Key, "test");
+                Assert.Equal(response.Bucket, this.bucketName);
+                Assert.Equal("test", response.Key);
                 String uploadId = response.UploadId;
                 List<MultipartUploadSummary> uploads =
                     this.client.ListMultipartUploads(this.bucketName).Uploads;
-                Assert.AreEqual(uploads.Count, 1);
-                Assert.AreEqual(uploads[0].UploadId, uploadId);
+                Assert.Single(uploads);
+                Assert.Equal(uploads[0].UploadId, uploadId);
             }
         }
 
-        [TestClass]
         public class UploadPartTest : Base
         {
-            [TestMethod]
+            [Fact]
             public void TestOrdinary()
             {
                 String uploadId = this.client.InitiateMultipartUpload(this.bucketName, "test").UploadId;
@@ -376,21 +363,20 @@ namespace BaiduBce.UnitTest.Services.Bos
                     PartSize = 4,
                     InputStream = new MemoryStream(Encoding.Default.GetBytes("data"))
                 });
-                Assert.AreEqual(response.PartNumber, 1);
-                Assert.IsNotNull(response.ETag);
+                Assert.Equal(1, response.PartNumber);
+                Assert.NotNull(response.ETag);
                 List<PartSummary> parts = this.client.ListParts(this.bucketName, "test", uploadId).Parts;
-                Assert.AreEqual(parts.Count, 1);
+                Assert.Single(parts);
                 PartSummary part = parts[0];
-                Assert.IsNotNull(part);
-                Assert.AreEqual(part.ETag, response.ETag);
-                Assert.AreEqual(part.Size, 4L);
+                Assert.NotNull(part);
+                Assert.Equal(part.ETag, response.ETag);
+                Assert.Equal(4L, part.Size);
             }
         }
 
-        [TestClass]
         public class ListPartsTest : Base
         {
-            [TestMethod]
+            [Fact]
             public void TestOrdinary()
             {
                 string uploadId = this.client.InitiateMultipartUpload(this.bucketName, "test").UploadId;
@@ -407,32 +393,32 @@ namespace BaiduBce.UnitTest.Services.Bos
                         InputStream = new MemoryStream(Encoding.Default.GetBytes(i.ToString()))
                     }).ETag);
                 }
+
                 ListPartsResponse response = this.client.ListParts(this.bucketName, "test", uploadId);
-                Assert.AreEqual(response.BucketName, this.bucketName);
-                Assert.AreEqual(response.IsTruncated, false);
-                Assert.AreEqual(response.Key, "test");
-                Assert.AreEqual(response.MaxParts, 1000);
-                Assert.AreEqual(response.NextPartNumberMarker, 10);
-                Assert.AreEqual(response.Owner.Id, this.owner.Id);
-                Assert.AreEqual(response.PartNumberMarker, 0);
-                Assert.AreEqual(response.UploadId, uploadId);
+                Assert.Equal(response.BucketName, this.bucketName);
+                Assert.False(response.IsTruncated);
+                Assert.Equal("test", response.Key);
+                Assert.Equal(1000, response.MaxParts);
+                Assert.Equal(10, response.NextPartNumberMarker);
+                Assert.Equal(response.Owner.Id, this.owner.Id);
+                Assert.Equal(0, response.PartNumberMarker);
+                Assert.Equal(response.UploadId, uploadId);
                 List<PartSummary> parts = response.Parts;
-                Assert.AreEqual(parts.Count, 10);
+                Assert.Equal(10, parts.Count);
                 for (int i = 0; i < 10; ++i)
                 {
                     PartSummary part = parts[i];
-                    Assert.AreEqual(part.ETag, eTags[i]);
-                    Assert.AreEqual(part.PartNumber, i + 1);
-                    Assert.AreEqual(part.Size, 1);
-                    Assert.IsTrue(Math.Abs(part.LastModified.Subtract(DateTime.UtcNow).TotalSeconds) < 60);
+                    Assert.Equal(part.ETag, eTags[i]);
+                    Assert.Equal(part.PartNumber, i + 1);
+                    Assert.Equal(1, part.Size);
+                    Assert.True(Math.Abs(part.LastModified.Subtract(DateTime.UtcNow).TotalSeconds) < 60);
                 }
             }
         }
 
-        [TestClass]
         public class CompleteMultipartUploadTest : Base
         {
-            [TestMethod]
+            [Fact]
             public void TestOrdinary()
             {
                 ObjectMetadata objectMetadata = new ObjectMetadata();
@@ -459,6 +445,7 @@ namespace BaiduBce.UnitTest.Services.Bos
                     }).ETag;
                     partETags.Add(new PartETag() {PartNumber = i + 1, ETag = eTag});
                 }
+
                 objectMetadata = new ObjectMetadata();
                 Dictionary<string, string> userMetadata = new Dictionary<string, string>();
                 userMetadata["metakey"] = "metaValue";
@@ -474,21 +461,20 @@ namespace BaiduBce.UnitTest.Services.Bos
                         ObjectMetadata = objectMetadata
                     };
                 CompleteMultipartUploadResponse response = this.client.CompleteMultipartUpload(request);
-                Assert.AreEqual(response.BucketName, this.bucketName);
-                Assert.AreEqual(response.Key, "test");
-                Assert.IsNotNull(response.ETag);
-                Assert.IsNotNull(response.Location);
+                Assert.Equal(response.BucketName, this.bucketName);
+                Assert.Equal("test", response.Key);
+                Assert.NotNull(response.ETag);
+                Assert.NotNull(response.Location);
                 ObjectMetadata metadata = this.client.GetObjectMetadata(bucketName, "test");
-                Assert.AreEqual(metadata.ContentType, "text/plain");
+                Assert.Equal("text/plain", metadata.ContentType);
                 string resultUserMeta = metadata.UserMetadata["metakey"];
-                Assert.AreEqual(resultUserMeta, "metaValue");
+                Assert.Equal("metaValue", resultUserMeta);
             }
         }
 
-        [TestClass]
         public class AbortMultipartUploadTest : Base
         {
-            [TestMethod]
+            [Fact]
             public void TestOrdinary()
             {
                 string uploadId = this.client.InitiateMultipartUpload(this.bucketName, "abortMultipartTest").UploadId;
@@ -504,12 +490,13 @@ namespace BaiduBce.UnitTest.Services.Bos
                         InputStream = new MemoryStream(Encoding.Default.GetBytes(i.ToString()))
                     });
                 }
+
                 List<MultipartUploadSummary> uploads =
                     this.client.ListMultipartUploads(this.bucketName).Uploads;
-                Assert.AreEqual(uploads.Count, 1);
+                Assert.Single(uploads);
                 this.client.AbortMultipartUpload(this.bucketName, "abortMultipartTest", uploadId);
                 uploads = this.client.ListMultipartUploads(this.bucketName).Uploads;
-                Assert.AreEqual(uploads.Count, 0);
+                Assert.Empty(uploads);
             }
         }
     }
