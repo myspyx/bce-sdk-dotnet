@@ -2,7 +2,7 @@
 
 **运行环境**
 
-C# SDK工具包可在Microsoft .NET Framework v3.5环境下运行。
+C# SDK工具包可在Microsoft .NET **Standard** 2.0环境下运行。
 
 **安装步骤**
 
